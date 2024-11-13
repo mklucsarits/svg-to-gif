@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SVG to GIF Converter</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+    <script>
+        // Explicitly set the worker URL before any GIF operations
+        window.gifWorkerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js';
+    </script>
     <style>
         body {
             font-family: system-ui, -apple-system, sans-serif;
@@ -74,6 +78,17 @@
     </div>
 
     <script>
+        function createGif(width, height) {
+            return new GIF({
+                workers: 2,
+                quality: 10,
+                width: width,
+                height: height,
+                workerScript: window.gifWorkerUrl
+            });
+        }
+
+        const gif = createGif(canvas.width, canvas.height);
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
         const preview = document.getElementById('preview');
@@ -195,14 +210,6 @@
             const svgRect = svg.getBoundingClientRect();
             canvas.width = svgRect.width;
             canvas.height = svgRect.height;
-
-            // Initialize GIF encoder
-            const gif = new GIF({
-                workers: 1,  // Changed to 1 worker since we're not using web workers
-                quality: 10,
-                width: canvas.width,
-                height: canvas.height
-            });
 
             try {
                 // Capture frames
