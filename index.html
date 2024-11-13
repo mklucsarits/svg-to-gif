@@ -78,17 +78,6 @@
     </div>
 
     <script>
-        function createGif(width, height) {
-            return new GIF({
-                workers: 2,
-                quality: 10,
-                width: width,
-                height: height,
-                workerScript: window.gifWorkerUrl
-            });
-        }
-
-        const gif = createGif(canvas.width, canvas.height);
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
         const preview = document.getElementById('preview');
@@ -210,6 +199,13 @@
             const svgRect = svg.getBoundingClientRect();
             canvas.width = svgRect.width;
             canvas.height = svgRect.height;
+            const gif = new GIF({
+                workers: 2,
+                quality: 10,
+                width: canvas.width,
+                height: canvas.height,
+                workerScript: window.gifWorkerUrl
+            });
 
             try {
                 // Capture frames
