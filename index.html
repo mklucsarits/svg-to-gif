@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG to GIF Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            margin: 1rem 0;
+            cursor: pointer;
+        }
+        .drop-zone.drag-over {
+            background-color: #f0f0f0;
+            border-color: #666;
+        }
+        .preview {
+            margin: 1rem 0;
+            padding: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+        .button {
+            background-color: #0066ff;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 1rem;
+            padding: 1rem;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            display: none;
+        }
+        #resultContainer {
+            margin-top: 1rem;
+            text-align: center;
+        }
+        #downloadButton {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>SVG to GIF Converter</h1>
+    <div class="drop-zone" id="dropZone">
+        <p>Drop your SVG file here or click to select</p>
+        <input type="file" id="fileInput" accept=".svg" style="display: none;">
+    </div>
+    <div class="preview" id="preview"></div>
+    <button id="convertButton" class="button" disabled>Convert to GIF</button>
+    <div class="status" id="status"></div>
+    <div id="resultContainer">
+        <button id="downloadButton" class="button">Download GIF</button>
+        <img id="resultPreview" style="display: none; max-width: 100%; margin-top: 1rem;">
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const preview = document.getElementById('preview');
+        const convertButton = document.getElementById('convertButton');
+        const status = document.getElementById('status');
+        const downloadButton = document.getElementById('downloadButton');
+        const resultPreview = document.getElementById('resultPreview');
+        let gifBlob = null;
+
+        // Handle drag and drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type === 'image/svg+xml') {
+                handleFile(file);
+            }
+        });
+
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const svgContent = e.target.result;
+                preview.innerHTML = svgContent;
+                const duration = getAnimationDuration(preview.querySelector('svg'));
+                convertButton.disabled = false;
+                downloadButton.style.display = 'none';
+                resultPreview.style.display = 'none';
+                showStatus(`Animation duration detected: ${duration}ms`);
+            };
+            reader.readAsText(file);
+        }
+
+        function getAnimationDuration(svgElement) {
+            let maxDuration = 0;
+            
+            // Check <animate> elements
+            const animateElements = svgElement.getElementsByTagName('animate');
+            for (const el of animateElements) {
+                const dur = parseDuration(el.getAttribute('dur'));
+                maxDuration = Math.max(maxDuration, dur);
+            }
+            
+            // Check <animateTransform> elements
+            const animateTransformElements = svgElement.getElementsByTagName('animateTransform');
+            for (const el of animateTransformElements) {
+                const dur = parseDuration(el.getAttribute('dur'));
+                maxDuration = Math.max(maxDuration, dur);
+            }
+            
+            // Check <animateMotion> elements
+            const animateMotionElements = svgElement.getElementsByTagName('animateMotion');
+            for (const el of animateMotionElements) {
+                const dur = parseDuration(el.getAttribute('dur'));
+                maxDuration = Math.max(maxDuration, dur);
+            }
+
+            // If no animations found, return default duration
+            return maxDuration || 2000;
+        }
+
+        function parseDuration(durAttr) {
+            if (!durAttr) return 0;
+            
+            // Handle 'ms' suffix
+            if (durAttr.endsWith('ms')) {
+                return parseFloat(durAttr);
+            }
+            // Handle 's' suffix
+            if (durAttr.endsWith('s')) {
+                return parseFloat(durAttr) * 1000;
+            }
+            return 0;
+        }
+
+        function showStatus(message) {
+            status.textContent = message;
+            status.style.display = 'block';
+        }
+
+        // Initialize GIF conversion when button is clicked
+        convertButton.addEventListener('click', async () => {
+            const svg = preview.querySelector('svg');
+            if (!svg) return;
+
+            convertButton.disabled = true;
+            downloadButton.style.display = 'none';
+            resultPreview.style.display = 'none';
+            showStatus('Converting...');
+
+            const duration = getAnimationDuration(svg);
+            const fps = 30;
+            const frameCount = Math.ceil((duration / 1000) * fps);
+            
+            // Create canvas for rendering
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size based on SVG
+            const svgRect = svg.getBoundingClientRect();
+            canvas.width = svgRect.width;
+            canvas.height = svgRect.height;
+
+            // Initialize GIF encoder
+            const gif = new GIF({
+                workers: 1,  // Changed to 1 worker since we're not using web workers
+                quality: 10,
+                width: canvas.width,
+                height: canvas.height
+            });
+
+            try {
+                // Capture frames
+                for (let i = 0; i < frameCount; i++) {
+                    const svgData = new XMLSerializer().serializeToString(svg);
+                    const svgBlob = new Blob([svgData], { type: 'image/svg+xml' });
+                    const url = URL.createObjectURL(svgBlob);
+                    
+                    // Wait for image to load
+                    await new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                            ctx.drawImage(img, 0, 0);
+                            gif.addFrame(ctx, { copy: true, delay: 1000 / fps });
+                            URL.revokeObjectURL(url);
+                            resolve();
+                        };
+                        img.onerror = reject;
+                        img.src = url;
+                    });
+
+                    showStatus(`Converting: ${Math.round((i + 1) / frameCount * 100)}%`);
+                    await new Promise(resolve => setTimeout(resolve, 1000 / fps));
+                }
+
+                // Render GIF
+                gif.on('finished', (blob) => {
+                    gifBlob = blob;
+                    const url = URL.createObjectURL(blob);
+                    resultPreview.src = url;
+                    resultPreview.style.display = 'block';
+                    downloadButton.style.display = 'inline-block';
+                    convertButton.disabled = false;
+                    showStatus('Conversion complete! Click "Download GIF" to save.');
+                });
+
+                gif.render();
+            } catch (error) {
+                showStatus('Error during conversion: ' + error.message);
+                convertButton.disabled = false;
+            }
+        });
+
+        // Handle download button click
+        downloadButton.addEventListener('click', () => {
+            if (gifBlob) {
+                const url = URL.createObjectURL(gifBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'animation.gif';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        });
+    </script>
+</body>
+</html>
